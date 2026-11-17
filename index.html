@@ -91,7 +91,7 @@ body{margin:0;font-family:'Hind Siliguri', sans-serif;background:#f6f5fb}
 
 <script>
 const API="https://script.google.com/macros/s/AKfycbzgQPvDdQM3aR1Wdmyf6cBMvP6lDbtrLiVghAIoOVv1wy_88oB9ELOkeyQG4cEPWcsG_w/exec?type=approved";
-const CACHE_KEY = "special_offline_v12";
+const CACHE_KEY = "special_offline_v13";
 let allData = []; let currentCat = 'All';
 function updateNetBar(){
   let el=document.getElementById('netBar');
@@ -101,6 +101,40 @@ function updateNetBar(){
 window.addEventListener('online', updateNetBar);
 window.addEventListener('offline', updateNetBar);
 updateNetBar();
+
+// === ছবি অফলাইনে সেভ করার জন্য IndexedDB - নতুন যোগ করা ===
+let dbPromise = new Promise((res,rej)=>{
+  let req=indexedDB.open('catalog-img-db',1);
+  req.onupgradeneeded=()=>{ req.result.createObjectStore('images'); };
+  req.onsuccess=()=>res(req.result);
+  req.onerror=()=>rej(req.error);
+});
+async function saveImage(url){
+  if(!url || !navigator.onLine) return;
+  try{
+    let r=await fetch(url); if(!r.ok) return;
+    let blob=await r.blob();
+    let db=await dbPromise;
+    let tx=db.transaction('images','readwrite'); tx.objectStore('images').put(blob, url);
+  }catch(e){}
+}
+async function getSavedImage(url){
+  try{ let db=await dbPromise; return await new Promise((res)=>{
+    let req=db.transaction('images','readonly').objectStore('images').get(url);
+    req.onsuccess=()=>res(req.result); req.onerror=()=>res(null);
+  }); }catch(e){ return null; }
+}
+async function cacheAllImages(data){
+  for(let o of data){ saveImage(o.image); await new Promise(r=>setTimeout(r,150)); }
+}
+async function applyOfflineImages(){
+  if(navigator.onLine) return;
+  document.querySelectorAll('#list img[data-src]').forEach(async (img)=>{
+    let url=img.getAttribute('data-src'); let blob=await getSavedImage(url);
+    if(blob && blob instanceof Blob){ img.src=URL.createObjectURL(blob); img.style.display='block'; }
+  });
+}
+
 function parseCats(str){ if(!str) return ['Others']; return str.split(',').map(s=>s.trim()).filter(s=>s); }
 function buildCategoryFilters(data){
   let catSet = new Set(); data.forEach(o=>{ parseCats(o.category||o.cat||'').forEach(c=>catSet.add(c)); });
@@ -123,10 +157,11 @@ function renderFiltered(){
     document.getElementById('list').innerHTML="<p style='text-align:center;padding:40px;color:#888'>এই Category তে কোনো প্রোডাক্ট নেই</p>"; return;
   }
   let h=""; filtered.forEach(o=>{
-    let img = o.image ? `<img src="${o.image}" loading="lazy" onerror="this.style.display='none'">` : `<div style="height:110px;background:#f3f0ff;border-radius:16px;line-height:110px;color:#999">No Image</div>`;
+    let img = o.image ? `<img data-src="${o.image}" src="${o.image}" loading="lazy" onerror="this.style.display='none'">` : `<div style="height:110px;background:#f3f0ff;border-radius:16px;line-height:110px;color:#999">No Image</div>`;
     h+=`<div class="card">${img}<h3>${o.heading||''}</h3><p>${o.para||''}</p></div>`;
   });
   document.getElementById('list').innerHTML=h;
+  applyOfflineImages();
 }
 function render(data){
   allData = data; buildCategoryFilters(allData); renderFiltered();
@@ -164,6 +199,7 @@ async function start(){
     if(j && j.length>0){
       render(j);
       try{ localStorage.setItem(CACHE_KEY, JSON.stringify(j)); }catch(e){}
+      cacheAllImages(j);
     } else if(!cache) {
       document.getElementById('list').innerHTML="<p style='text-align:center;padding:40px;color:#888'>কোনো Approved প্রোডাক্ট নেই</p>";
     }
