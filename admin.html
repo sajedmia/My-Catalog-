@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@500;600&display=swap" rel="stylesheet">
+<style>
+body{background:#f6f5fb;margin:0;font-family:'Hind Siliguri',sans-serif;padding:15px}
+input, textarea{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:12px;box-sizing:border-box;background:#fff;font-size:15px}
+button{background:#6200ee;color:white;border:none;padding:15px;width:100%;border-radius:12px;font-size:16px;margin-top:10px;font-weight:600}
+img#preview{max-width:100%;margin-top:10px;border-radius:10px;display:none}
+.header{background:#6200ee;color:white;padding:15px;margin:-15px -15px 15px -15px;font-size:18px;cursor:pointer}
+.card{background:#fff;padding:14px;border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.05);margin-bottom:12px;position:relative}
+.cat-preview{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cat-chip{background:#f3f0ff;color:#6200ee;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.suggest-box{position:absolute;left:0;right:0;top:68px;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.15);max-height:170px;overflow-y:auto;display:none;z-index:99}
+.suggest-box div{padding:12px;font-size:14px;cursor:pointer;border-bottom:1px solid #f5f5f5}
+.suggest-box div:hover{background:#f3f0ff;color:#6200ee}
+.hint{font-size:12px;color:#777;margin:0 0 8px 2px}
+</style>
+</head>
+<body>
+<div class="header" onclick="location.href='index.html'">← Back to Page</div>
+<h3>নতুন কার্ড এড করুন</h3>
+
+<input type="file" id="imgInput" accept="image/*">
+<img id="preview">
+<input type="text" id="heading" placeholder="হেডিং লিখুন">
+<textarea id="para" placeholder="বর্ণনা লিখুন"></textarea>
+
+<div class="card" style="overflow:visible;padding:12px">
+<input type="text" id="category" placeholder="Category লিখুন (M লিখলেই সাজেস্ট আসবে)" autocomplete="off" oninput="onCatInput(this.value)" onfocus="onCatInput(this.value)" style="margin:0">
+<div id="suggestBox" class="suggest-box"></div>
+<div class="hint">একই ছবি একাধিক ফিল্টারে রাখতে কমা দিয়ে লিখুন। যেমন: meril, winter, offer</div>
+<div class="cat-preview" id="catPreview"></div>
+</div>
+
+<button onclick="saveCard()" id="saveBtn">Save Card</button>
+
+<script>
+const API_BASE="https://script.google.com/macros/s/AKfycbzgQPvDdQM3aR1Wdmyf6cBMvP6lDbtrLiVghAIoOVv1wy_88oB9ELOkeyQG4cEPWcsG_w/exec";
+const API=API_BASE+"?type=approved";
+let base64Image=''; let allCategories=[];
+
+function parseCats(str){ return str.split(',').map(s=>s.trim()).filter(s=>s); }
+
+fetch(API+"&t="+Date.now()).then(r=>r.json()).then(data=>{
+  let set=new Set();
+  (data||[]).forEach(o=>{ parseCats(o.category||'').forEach(c=>set.add(c)); });
+  allCategories=Array.from(set);
+});
+
+function onCatInput(fullVal){
+  let parts=fullVal.split(','); let last=parts[parts.length-1].trim().toLowerCase();
+  let box=document.getElementById('suggestBox');
+  updateChips(fullVal);
+  if(!last){ box.style.display='none'; return; }
+  let filtered=allCategories.filter(c=> c.toLowerCase().includes(last) && !fullVal.toLowerCase().includes(c.toLowerCase()) );
+  if(filtered.length==0){ box.style.display='none'; return; }
+  box.innerHTML=filtered.map(c=>`<div onclick="selectCat('${c.replace(/'/g,"\\'")}')">${c}</div>`).join('');
+  box.style.display='block';
+}
+function selectCat(cat){
+  let input=document.getElementById('category');
+  let parts=input.value.split(',').map(s=>s.trim()).filter(s=>s);
+  if(input.value.endsWith(',')||input.value.endsWith(', ')){ parts.push(cat); } else { parts.pop(); parts.push(cat); }
+  input.value=parts.join(', ')+', ';
+  document.getElementById('suggestBox').style.display='none';
+  updateChips(input.value);
+  input.focus();
+}
+function updateChips(val){
+  let cats=parseCats(val);
+  document.getElementById('catPreview').innerHTML=cats.map(c=>`<span class="cat-chip">${c}</span>`).join('');
+}
+document.getElementById('imgInput').addEventListener('change', function(e){
+  let file=e.target.files[0]; let reader=new FileReader();
+  reader.onload=function(evt){
+    let img=new Image();
+    img.onload=function(){
+      let canvas=document.createElement('canvas'); let max=700; let w=img.width,h=img.height;
+      if(w>max){ h=h*(max/w); w=max; } canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      base64Image=canvas.toDataURL('image/jpeg',0.6);
+      document.getElementById('preview').src=base64Image;
+      document.getElementById('preview').style.display='block';
+    }; img.src=evt.target.result;
+  }; reader.readAsDataURL(file);
+});
+function saveCard(){
+  let heading=document.getElementById('heading').value.trim();
+  let para=document.getElementById('para').value.trim();
+  let category=document.getElementById('category').value.trim().replace(/,+$/,'').trim();
+  let btnText="See";
+  if(!base64Image||!heading){ alert('ছবি এবং হেডিং দিন'); return; }
+  if(!category){ alert('Category দিন'); return; }
+  document.getElementById('saveBtn').innerText="আপলোড হচ্ছে...";
+  let fd=new FormData();
+  fd.append("action","add");
+  fd.append("image",base64Image);
+  fd.append("heading",heading);
+  fd.append("para",para);
+  fd.append("category",category);
+  fd.append("cat",category);
+  fd.append("btn",btnText);
+  fetch(API_BASE,{method:"POST",body:fd}).then(r=>r.text()).then(()=>{
+    alert('✅ Pending এ গেছে! Category: '+category);
+    location.href='index.html';
+  }).catch(()=>{ alert('❌ Error! আবার চেষ্টা করুন'); document.getElementById('saveBtn').innerText="Save Card"; });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:'Hind Siliguri', sans-serif;background:#f6f5fb}
+.h1{background:#6200ee;color:#fff;padding:14px 16px;font-size:22px;font-weight:600}
+.h2{background:linear-gradient(135deg,#7c1cff,#5a00d0);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;font-size:20px}
+.h2 span{background:#fff;color:#6200ee;padding:6px 14px;border-radius:20px;font-size:14px;font-weight:600;cursor:pointer}
+
+/* === FIXED CATEGORY === */
+.cat-filters{
+  display:flex;
+  flex-wrap:nowrap; /* আগে wrap ছিল, এখন nowrap */
+  gap:8px;
+  padding:12px 15px;
+  background:#fff;
+  border-bottom:1px solid #eee;
+  position:sticky;
+  top:0;
+  z-index:10;
+  overflow-x:auto; /* Horizontal Scroll */
+  overflow-y:hidden;
+  white-space:nowrap;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none; /* Firefox hide */
+}
+.cat-filters::-webkit-scrollbar{display:none} /* Chrome hide */
+.cat-filters::after{
+  content:'';
+  position:sticky;
+  right:-15px;
+  min-width:40px;
+  background:linear-gradient(to right, transparent, #fff);
+  pointer-events:none;
+}
+
+.cat-filters button{padding:8px 16px;border:none;border-radius:20px;font-size:13px;font-weight:600;background:#f0eaff;color:#6200ee;flex-shrink:0;cursor:pointer;white-space:nowrap}
+.cat-filters button.active{background:#6200ee;color:#fff;box-shadow:0 4px 8px rgba(98,0,238,.25)}
+#msg{margin:12px 15px;padding:10px 14px;background:#ffebee;color:#c62828;border-radius:12px;font-size:13px;display:none;border:1px solid #ffcdd2}
+#list{padding-bottom:90px}
+.card{
+  background:#fff;
+  margin:18px 16px;
+  border-radius:28px;
+  overflow:hidden;
+  box-shadow:0 10px 24px rgba(98,0,238,.12);
+  text-align:center;
+  padding:28px 20px 32px;
+}
+.card img{
+  width:95%;
+  max-height:460px;
+  object-fit:contain;
+  margin:0 auto 18px;
+  display:block;
+  border-radius:20px;
+  background:#faf7ff;
+}
+.card h3{
+  margin: 12px 0 6px;
+  font-size:20px;
+  line-height:1.4;
+  color:#1a1a1a;
+}
+.card p{
+  margin:0;
+  color:#000;
+  font-size:15px;
+  line-height:1.6;
+  font-weight:700;
+  padding:10px 18px 6px;
+}
+.btn-see{background:linear-gradient(135deg,#1a5cff,#0040ff);color:#fff;border:none;padding:12px 36px;border-radius:14px;font-size:16px;font-weight:600;margin-top:14px;box-shadow:0 6px 12px rgba(26,92,255,.25);cursor:pointer}
+.fab{position:fixed;bottom:22px;right:20px;width:62px;height:62px;background:linear-gradient(135deg,#7c1cff,#6200ee);color:#fff;border-radius:50%;font-size:30px;border:none;box-shadow:0 8px 20px rgba(98,0,238,.35);cursor:pointer}
+.skeleton{background:linear-gradient(90deg,#eee 25%,#f5f5f5 50%,#eee 75%);background-size:200% 100%;animation:shim 1.2s infinite}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+</head>
+<body>
+<div class="h1">My Catalog</div>
+<div class="cat-filters" id="catFilters">
+  <button class="active" onclick="filterByCat('All', this)">All</button>
+</div>
+<div id="msg"></div>
+<div id="list"></div>
+<button class="fab" onclick="location.href='admin.html'">+</button>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzgQPvDdQM3aR1Wdmyf6cBMvP6lDbtrLiVghAIoOVv1wy_88oB9ELOkeyQG4cEPWcsG_w/exec?type=approved";
+const CACHE_KEY = "special_offline_v11";
+let allData = []; let currentCat = 'All';
+function parseCats(str){ if(!str) return ['Others']; return str.split(',').map(s=>s.trim()).filter(s=>s); }
+function buildCategoryFilters(data){
+  let catSet = new Set(); data.forEach(o=>{ parseCats(o.category||o.cat||'').forEach(c=>catSet.add(c)); });
+  if(catSet.size==0) catSet.add('Others'); let cats = Array.from(catSet);
+  let html = `<button class="${currentCat=='All'?'active':''}" onclick="filterByCat('All', this)">All (${data.length})</button>`;
+  cats.forEach(c=>{
+    let count = data.filter(o=> parseCats(o.category||o.cat||'Others').includes(c)).length;
+    html += `<button class="${currentCat==c?'active':''}" onclick="filterByCat('${c}', this)">${c} (${count})</button>`;
+  });
+  document.getElementById('catFilters').innerHTML = html;
+}
+function filterByCat(cat, btn){
+  currentCat = cat; document.querySelectorAll('#catFilters button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active'); renderFiltered();
+}
+function renderFiltered(){
+  let filtered = allData;
+  if(currentCat!=='All'){ filtered = allData.filter(o=> parseCats(o.category||o.cat||'Others').includes(currentCat)); }
+  if(!filtered || filtered.length==0){
+    document.getElementById('list').innerHTML="<p style='text-align:center;padding:40px;color:#888'>এই Category তে কোনো প্রোডাক্ট নেই</p>"; return;
+  }
+  let h=""; filtered.forEach(o=>{
+    let img = o.image ? `<img src="${o.image}" loading="lazy" onerror="this.style.display='none'">` : `<div style="height:110px;background:#f3f0ff;border-radius:16px;line-height:110px;color:#999">No Image</div>`;
+    h+=`<div class="card">${img}<h3>${o.heading||''}</h3><p>${o.para||''}</p></div>`;
+  });
+  document.getElementById('list').innerHTML=h;
+}
+function render(data){
+  allData = data; buildCategoryFilters(allData); renderFiltered();
+  document.getElementById('msg').style.display='none';
+}
+function showError(msg){
+  let m=document.getElementById('msg'); m.style.display='block'; m.innerHTML=msg;
+}
+function urlToBase64(url){
+  return new Promise(async (resolve)=>{
+    try{
+      if(!url) return resolve("");
+      if(url.startsWith("data:")){
+        let img=new Image();
+        img.onload=()=>{
+          let c=document.createElement('canvas'); let maxW=420; let scale=Math.min(1,maxW/img.width);
+          c.width=img.width*scale; c.height=img.height*scale; c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+          resolve(c.toDataURL('image/jpeg',0.65));
+        };
+        img.onerror=()=>resolve(url);
+        img.src=url;
+      }else{
+        let r=await fetch(url); let b=await r.blob();
+        let fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=()=>resolve(url); fr.readAsDataURL(b);
+      }
+    }catch(e){ resolve(url); }
+  });
+}
+async function start(){
+  document.getElementById('list').innerHTML="<div class='card skeleton' style='height:280px'></div><div class='card skeleton' style='height:280px'></div>";
+  let cache = localStorage.getItem(CACHE_KEY);
+  if(cache){ try{ let cachedData = JSON.parse(cache); if(cachedData.length>0) render(cachedData); }catch(e){} }
+  try{
+    let r = await fetch(API+"&t="+Date.now()); let j = await r.json();
+    if(j && j.length>0){
+      render(j);
+      let small=[]; let limit=Math.min(j.length,30);
+      for(let i=0;i<limit;i++){
+        let o=j[i];
+        let sImg=await urlToBase64(o.image||"");
+        small[i]={id:o.id,image:sImg,heading:o.heading,para:o.para,btn:o.btn,link:o.link,category:o.category||o.cat||''};
+      }
+      try{ localStorage.setItem(CACHE_KEY, JSON.stringify(small)); }catch(e){}
+    } else if(!cache) {
+      document.getElementById('list').innerHTML="<p style='text-align:center;padding:40px;color:#888'>কোনো Approved প্রোডাক্ট নেই</p>";
+    }
+  }catch(e){
+    if(!cache){
+      showError("⚠️ নেট কানেকশন নেই, আগে একবার অনলাইনে ওপেন করুন");
+    }
+  }
+}
+start();
+</script>
+</body>
+</html>
