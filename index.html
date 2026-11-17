@@ -81,6 +81,7 @@ body{margin:0;font-family:'Hind Siliguri', sans-serif;background:#f6f5fb}
 </head>
 <body>
 <div class="h1">My Catalog</div>
+<div id="netBar" style="padding:7px;text-align:center;font-size:13px;font-weight:bold;color:#fff;background:#22c55e">● অনলাইন - লাইভ ক্যাটালগ</div>
 <div class="cat-filters" id="catFilters">
   <button class="active" onclick="filterByCat('All', this)">All</button>
 </div>
@@ -90,8 +91,16 @@ body{margin:0;font-family:'Hind Siliguri', sans-serif;background:#f6f5fb}
 
 <script>
 const API="https://script.google.com/macros/s/AKfycbzgQPvDdQM3aR1Wdmyf6cBMvP6lDbtrLiVghAIoOVv1wy_88oB9ELOkeyQG4cEPWcsG_w/exec?type=approved";
-const CACHE_KEY = "special_offline_v11";
+const CACHE_KEY = "special_offline_v12";
 let allData = []; let currentCat = 'All';
+function updateNetBar(){
+  let el=document.getElementById('netBar');
+  if(navigator.onLine){ el.style.background='#22c55e'; el.innerText='● অনলাইন - লাইভ ক্যাটালগ'; }
+  else { el.style.background='#ef4444'; el.innerText='● অফলাইন - সেভ করা ক্যাটালগ দেখছেন'; }
+}
+window.addEventListener('online', updateNetBar);
+window.addEventListener('offline', updateNetBar);
+updateNetBar();
 function parseCats(str){ if(!str) return ['Others']; return str.split(',').map(s=>s.trim()).filter(s=>s); }
 function buildCategoryFilters(data){
   let catSet = new Set(); data.forEach(o=>{ parseCats(o.category||o.cat||'').forEach(c=>catSet.add(c)); });
@@ -154,13 +163,7 @@ async function start(){
     let r = await fetch(API+"&t="+Date.now()); let j = await r.json();
     if(j && j.length>0){
       render(j);
-      let small=[]; let limit=Math.min(j.length,30);
-      for(let i=0;i<limit;i++){
-        let o=j[i];
-        let sImg=await urlToBase64(o.image||"");
-        small[i]={id:o.id,image:sImg,heading:o.heading,para:o.para,btn:o.btn,link:o.link,category:o.category||o.cat||''};
-      }
-      try{ localStorage.setItem(CACHE_KEY, JSON.stringify(small)); }catch(e){}
+      try{ localStorage.setItem(CACHE_KEY, JSON.stringify(j)); }catch(e){}
     } else if(!cache) {
       document.getElementById('list').innerHTML="<p style='text-align:center;padding:40px;color:#888'>কোনো Approved প্রোডাক্ট নেই</p>";
     }
